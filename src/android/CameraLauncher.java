@@ -104,6 +104,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private int mediaType;                  // What type of media to retrieve
     private int destType;                   // Source type (needs to be saved for the permission handling)
     private int srcType;                    // Destination type (needs to be saved for permission handling)
+    private int cameraDirection;            // Camera Direction Front/Back
     private boolean saveToPhotoAlbum;       // Should the picture be saved to the device's photo album
     private boolean correctOrientation;     // Should the pictures orientation be corrected
     private boolean orientationCorrected;   // Has the picture's orientation been corrected
@@ -137,8 +138,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             this.targetHeight = 0;
             this.targetWidth = 0;
             this.encodingType = JPEG;
+            this.cameraDirection = 0;
             this.mediaType = PICTURE;
-            this.mQuality = 50;
+            this.mQuality = 80;
 
             //Take the values from the arguments if they're not already defined (this is tricky)
             this.destType = args.getInt(1);
@@ -151,6 +153,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             this.allowEdit = args.getBoolean(7);
             this.correctOrientation = args.getBoolean(8);
             this.saveToPhotoAlbum = args.getBoolean(9);
+            this.cameraDirection = args.getInt(11);
 
             // If the user specifies a 0 or smaller width/height
             // make it -1 so later comparisons succeed
@@ -170,7 +173,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
              try {
                 if (this.srcType == CAMERA) {
-                    this.callTakePicture(destType, encodingType);
+                    this.callTakePicture(destType, encodingType, cameraDirection);
                 }
                 else if ((this.srcType == PHOTOLIBRARY) || (this.srcType == SAVEDPHOTOALBUM)) {
                     // FIXME: Stop always requesting the permission
@@ -233,7 +236,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param quality           Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
      * @param returnType        Set the type of image to return.
      */
-    public void callTakePicture(int returnType, int encodingType) {
+    public void callTakePicture(int returnType, int encodingType, int cameraDirection) {
         boolean saveAlbumPermission = PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
         boolean takePicturePermission = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
 
@@ -261,7 +264,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         }
 
         if (takePicturePermission && saveAlbumPermission) {
-            takePicture(returnType, encodingType);
+            takePicture(returnType, encodingType, cameraDirection);
         } else if (saveAlbumPermission && !takePicturePermission) {
             PermissionHelper.requestPermission(this, TAKE_PIC_SEC, Manifest.permission.CAMERA);
         } else if (!saveAlbumPermission && takePicturePermission) {
@@ -271,14 +274,14 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         }
     }
 
-    public void takePicture(int returnType, int encodingType)
+    public void takePicture(int returnType, int encodingType, int cameraDirection)
     {
         // Save the number of images currently on disk for later
         this.numPics = queryImgDB(whichContentStore()).getCount();
 
         // Let's use the intent and see what happens
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-
+        intent.putExtra("android.intent.extras.CAMERA_FACING", cameraDirection);
         // Specify file so that large image is captured and returned
         File photo = createCaptureFile(encodingType);
         intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, Uri.fromFile(photo));
@@ -1227,7 +1230,7 @@ private String ouputModifiedBitmap(Bitmap bitmap, Uri uri) throws IOException {
         switch(requestCode)
         {
             case TAKE_PIC_SEC:
-                takePicture(this.destType, this.encodingType);
+                takePicture(this.destType, this.encodingType, this.cameraDirection);
                 break;
             case SAVE_TO_ALBUM_SEC:
                 this.getImage(this.srcType, this.destType, this.encodingType);
@@ -1250,6 +1253,7 @@ private String ouputModifiedBitmap(Bitmap bitmap, Uri uri) throws IOException {
         state.putInt("encodingType", this.encodingType);
         state.putInt("mediaType", this.mediaType);
         state.putInt("numPics", this.numPics);
+        state.putInt("cameraDirection", this.cameraDirection);
         state.putBoolean("allowEdit", this.allowEdit);
         state.putBoolean("correctOrientation", this.correctOrientation);
         state.putBoolean("saveToPhotoAlbum", this.saveToPhotoAlbum);
@@ -1274,6 +1278,7 @@ private String ouputModifiedBitmap(Bitmap bitmap, Uri uri) throws IOException {
         this.encodingType = state.getInt("encodingType");
         this.mediaType = state.getInt("mediaType");
         this.numPics = state.getInt("numPics");
+        this.cameraDirection = state.getInt("cameraDirection");
         this.allowEdit = state.getBoolean("allowEdit");
         this.correctOrientation = state.getBoolean("correctOrientation");
         this.saveToPhotoAlbum = state.getBoolean("saveToPhotoAlbum");
